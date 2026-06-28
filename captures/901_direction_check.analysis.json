@@ -1,0 +1,24 @@
+{
+  "capture": "C:\\Users\\Administrator\\Documents\\绿城海尔门禁系统\\captures\\901_direction_check.pcapng",
+  "generated_at": "2026-06-28T21:38:03+08:00",
+  "validation": {
+    "terminal_to_door_seen": false,
+    "door_to_terminal_seen": true,
+    "bidirectional": false,
+    "usable_for_command_inference": false
+  },
+  "directions": {
+    "172.30.2.36->172.30.2.55": 5,
+    "172.30.100.100->172.30.2.55": 5,
+    "172.30.2.36->238.9.9.2": 1,
+    "172.30.2.36->224.0.0.22": 2
+  },
+  "destination_ports": {
+    "other": 12,
+    "8300": 1
+  },
+  "media": {},
+  "tcp_payloads": [],
+  "action_windows": [],
+  "warning": "缺少至少一个方向；停止命令推导，改用交换机端口镜像或真正网络 TAP。"
+}

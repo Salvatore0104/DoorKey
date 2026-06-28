@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "verified": true,
+  "source": "901 upstream TAP captures on 2026-06-28; terminal identity translated field-by-field to 501",
+  "identity": {
+    "terminal_number": "0501",
+    "terminal_ip": "172.30.2.47",
+    "door_ip": "172.30.2.36"
+  },
+  "commands": {
+    "call_ack": "ffff001c00000000000000000000010300010001020501ac1e022f000f0101fe",
+    "answer": "ffff001a00000000000000000000010300010001020501ac1e022f0005fe",
+    "hangup": "ffff001a00000000000000000000010300010001020501ac1e022f0006fe",
+    "unlock": "ffff001a00000000000000000000010300010001020501ac1e022f0003fe",
+    "reject_or_cancel": "ffff001a00000000000000000000010300010001020501ac1e022f0008fe",
+    "monitor_start": null,
+    "monitor_stop": null
+  },
+  "evidence": {
+    "call_ack": "901_full_upstream_session.pcapng: repeated at each incoming session",
+    "answer": "message 05 immediately precedes microphone UDP audio",
+    "hangup": "message 06 immediately terminates microphone UDP audio",
+    "unlock": "901_final_unlock_during_call.pcapng at 2026-06-28 22:14:57; door lock physically actuated",
+    "identity_fields": {
+      "terminal_number_offset": 21,
+      "terminal_ipv4_offset": 23
+    }
+  },
+  "audio_tx": {
+    "verified": false,
+    "header_template_hex": null,
+    "sequence_offset": 0,
+    "sequence_size": 4,
+    "sequence_byteorder": "big",
+    "packet_samples": 512,
+    "sample_rate": 8000,
+    "codec": "pcmu",
+    "note": "PCMU payload verified; remaining 20-byte session header fields are dynamic"
+  }
+}

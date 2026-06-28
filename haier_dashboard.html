@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>501 门禁控制台</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0a0d12;--panel:#111721;--line:#263141;--text:#edf3fa;--muted:#8d9bad;--green:#43d17b;--amber:#ffbd4a;--red:#ff6470;--blue:#4aa8ff}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% 0,#172231 0,transparent 35%),var(--bg);font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;color:var(--text);min-height:100vh}
+    .wrap{width:min(1120px,calc(100% - 32px));margin:28px auto}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.brand h1{font-size:25px;margin:0 0 5px}.brand p{margin:0;color:var(--muted);font-size:13px}.chip{border:1px solid var(--line);border-radius:999px;padding:8px 12px;background:#111823;color:var(--muted);font-size:13px;display:flex;gap:8px;align-items:center}.dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px currentColor}.dot.online{background:var(--green)}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.card{background:linear-gradient(180deg,#131a24,#0f151e);border:1px solid var(--line);border-radius:18px;box-shadow:0 20px 50px #0006;overflow:hidden}.card-head{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.card-head h2{font-size:15px;margin:0}.call{padding:32px 24px 28px;text-align:center}.ring{width:98px;height:98px;border:1px solid #344155;border-radius:50%;display:grid;place-items:center;margin:4px auto 20px;background:#0d131c;transition:.25s}.ring.active{border-color:var(--green);box-shadow:0 0 0 10px #43d17b16,0 0 45px #43d17b35;animation:pulse 1.4s infinite}.phone{font-size:38px}.call-title{font-size:27px;font-weight:700;margin-bottom:7px}.call-sub{color:var(--muted);font-size:14px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:30px}.btn{border:0;border-radius:12px;padding:14px 16px;font-size:15px;font-weight:700}.unlock{background:#293340;color:#788697;cursor:not-allowed}.disabled-note{font-size:12px;color:var(--amber);margin-top:12px}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}.stat{background:#101720;padding:16px 18px}.stat span{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}.stat strong{font-size:16px;font-variant-numeric:tabular-nums}
+    .logs{grid-column:1/-1}.logbar{display:flex;gap:8px}.legend{font-size:11px;padding:4px 8px;border-radius:6px;background:#1b2532;color:var(--muted)}.logbox{height:340px;overflow:auto;padding:8px 0;background:#090d12;font-family:"Cascadia Mono",Consolas,monospace}.row{display:grid;grid-template-columns:100px 42px 1fr;gap:10px;padding:8px 18px;border-bottom:1px solid #17202b;font-size:12px;line-height:1.5}.row:hover{background:#101720}.time{color:#667589}.dir{font-weight:800}.dir.RX{color:var(--green)}.dir.TX{color:var(--blue)}.dir.SYS{color:var(--amber)}.hex{display:block;color:#657284;word-break:break-all;margin-top:3px}.blocked{color:var(--red)}
+    @keyframes pulse{50%{box-shadow:0 0 0 18px #43d17b08,0 0 55px #43d17b4a}}@media(max-width:760px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;gap:14px}.row{grid-template-columns:82px 36px 1fr}.stats{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <div class="top"><div class="brand"><h1>501 门禁控制台</h1><p>本地只读监听 · 172.30.2.47</p></div><div class="chip"><i id="dot" class="dot"></i><span id="listener">正在连接</span></div></div>
+  <section class="grid">
+    <article class="card">
+      <div class="card-head"><h2>来电状态</h2><span id="lastCall" class="legend">暂无来电</span></div>
+      <div class="call"><div id="ring" class="ring"><span class="phone">☎</span></div><div id="callTitle" class="call-title">等待呼叫</div><div id="callSub" class="call-sub">门口机 172.30.2.36</div><div class="actions"><button class="btn unlock" disabled>开门（协议未确认）</button><button class="btn unlock" disabled>接听（协议未确认）</button></div><div class="disabled-note">安全模式：当前不会向门禁网络发送应用层控制数据</div></div>
+    </article>
+    <article class="card">
+      <div class="card-head"><h2>连接概况</h2><span class="legend">实时</span></div>
+      <div class="stats"><div class="stat"><span>来电次数</span><strong id="calls">0</strong></div><div class="stat"><span>监听端口</span><strong>46752</strong></div><div class="stat"><span>接收数据</span><strong id="rx">0 B</strong></div><div class="stat"><span>发送数据</span><strong id="tx">0 B</strong></div><div class="stat"><span>门口机</span><strong>172.30.2.36</strong></div><div class="stat"><span>本机</span><strong>172.30.2.47</strong></div></div>
+    </article>
+    <article class="card logs">
+      <div class="card-head"><h2>实时通信日志</h2><div class="logbar"><span class="legend">RX 接收</span><span class="legend">TX 发送</span></div></div>
+      <div id="logbox" class="logbox"></div>
+    </article>
+  </section>
+</main>
+<script>
+let lastId=0;const fmt=n=>n<1024?`${n} B`:`${(n/1024).toFixed(1)} KB`;
+async function refreshState(){try{const s=await fetch('/api/state',{cache:'no-store'}).then(r=>r.json());const online=s.listener==='online';document.querySelector('#dot').classList.toggle('online',online);document.querySelector('#listener').textContent=online?'监听正常':'监听异常';document.querySelector('#calls').textContent=s.call_count;document.querySelector('#rx').textContent=fmt(s.rx_bytes);document.querySelector('#tx').textContent=fmt(s.tx_bytes);document.querySelector('#lastCall').textContent=s.last_call||'暂无来电';document.querySelector('#ring').classList.toggle('active',s.call_active);document.querySelector('#callTitle').textContent=s.call_active?'501 正在呼叫':'等待呼叫';document.querySelector('#callSub').textContent=s.call_active?'来自门口机 172.30.2.36':'门口机 172.30.2.36';}catch(e){document.querySelector('#listener').textContent='网页服务断开';}}
+async function refreshLogs(){try{const d=await fetch(`/api/logs?after=${lastId}`,{cache:'no-store'}).then(r=>r.json());const box=document.querySelector('#logbox');for(const e of d.events){lastId=Math.max(lastId,e.id);const row=document.createElement('div');row.className='row';row.innerHTML=`<span class="time">${e.time}</span><span class="dir ${e.direction}">${e.direction}</span><span class="${e.level==='blocked'?'blocked':''}">${e.message}${e.hex?`<code class="hex">${e.hex}</code>`:''}</span>`;box.appendChild(row);}if(d.events.length)box.scrollTop=box.scrollHeight;}catch(e){}}
+refreshState();refreshLogs();setInterval(refreshState,600);setInterval(refreshLogs,600);
+</script>
+</body>
+</html>

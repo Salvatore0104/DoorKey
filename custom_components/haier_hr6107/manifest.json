@@ -1,0 +1,11 @@
+{
+  "domain": "haier_hr6107",
+  "name": "Haier HR-6107",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://example.invalid/haier-hr6107",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}

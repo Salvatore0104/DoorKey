@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 服务运行时文件
+.hr6107_api_token
+.hr6107_service.pid
+hr6107_console.log
+hr6107_console.error.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 大文件 / 二进制媒体（保留 .pcapng 作为分析证据，按需取消注释）
+*.bin
+*.wav
+*.mulaw
+*.h264
+*.mp4
+
+# 测试 / 缓存
+.pytest_cache/
+.coverage
+htmlcov/
