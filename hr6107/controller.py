@@ -44,6 +44,8 @@ class TerminalController:
         self._audio_resampler = av.AudioResampler(format="s16", layout="mono", rate=8000)
         self._audio_tx_buffer = bytearray()
         self._audio_tx_sequence = 0
+        self._audio_tx_session_header = bytearray(20)
+        self._audio_tx_session_ready = False
         self._last_video_log_at = 0.0
 
     async def start(self) -> None:
@@ -158,6 +160,7 @@ class TerminalController:
                     await self.events.publish("RX", "media", "解码视频帧", packets=self.state.video_packets, frames=decoded)
             else:
                 self.state.audio_packets += 1
+                self._capture_audio_session(data)
                 await self.media.feed_audio(data)
         except Exception as exc:
             self.state.last_error = str(exc)
@@ -222,6 +225,16 @@ class TerminalController:
             with suppress(Exception):
                 await writer.wait_closed()
 
+    def _capture_audio_session(self, datagram: bytes) -> None:
+        """从下行音频包提取会话标识，用于构造上行音频头。"""
+        if len(datagram) < 20:
+            return
+        header = datagram[:20]
+        self._audio_tx_session_header = bytearray(header)
+        if not self._audio_tx_session_ready:
+            self._audio_tx_session_ready = True
+            self._audio_tx_sequence = 0
+
     async def microphone_frame(self, frame) -> None:
         if not self.profile.audio_tx_verified:
             return
@@ -238,6 +251,8 @@ class TerminalController:
             pcm = bytes(self._audio_tx_buffer[:chunk_size])
             del self._audio_tx_buffer[:chunk_size]
             header = bytearray(config["header"])
+            if self._audio_tx_session_ready:
+                header = bytearray(self._audio_tx_session_header)
             offset = config["sequence_offset"]
             if offset is not None:
                 size = config["sequence_size"]
@@ -247,6 +262,9 @@ class TerminalController:
                 header[offset : offset + size] = (self._audio_tx_sequence % modulo).to_bytes(
                     size, config["sequence_byteorder"]
                 )
+            seq_field_offset = 15
+            if seq_field_offset < len(header):
+                header[seq_field_offset] = self._audio_tx_sequence % 256
             packet = bytes(header) + audioop.lin2ulaw(pcm, 2)
             transport.sendto(packet, (self.settings.door_ip, self.settings.audio_port))
             self._audio_tx_sequence += 1
