@@ -1,0 +1,118 @@
+# ESP32-S3 HR-6107 门禁协议转发网关 (ESPHome 配置)
+#
+# 工作原理：ESP32 通过 W5500 以太网连门禁网，WiFi 连家庭网
+# 收到门禁网的 TCP/UDP 包后，原样转发到 Docker/HA 主机处理
+# HA 下发的控制命令通过 MQTT/UDP 发回 ESP32，再转发给门口机
+#
+# 部署：esphome run hr6107_gateway.yaml
+
+esphome:
+  name: hr6107-gateway
+  friendly_name: HR-6107 门禁网关
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+    version: recommended
+
+# PSRAM (H.264 视频转发缓冲)
+psram:
+  mode: octal
+  speed: 80MHz
+
+# WiFi 连接家庭 HA 网络
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.1.100    # ESP32 在家庭网的IP
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+
+# MQTT 连接 HA (转发控制帧)
+mqtt:
+  broker: 192.168.1.10          # HA/Docker 主机IP
+  port: 1883
+  topic_prefix: hr6107
+  # 收到 HA 下发的控制命令 → 通过自定义组件发门口机
+  on_message:
+    - topic: hr6107/control/tx
+      then:
+        - lambda: |-
+            id(door_gateway).send_control(payload, payload_len);
+
+# ESP32 原生日志
+logger:
+  level: INFO
+  baud_rate: 0                   # 不占用 UART0
+
+# W5500 以太网 (接门禁网 RJ45)
+ethernet:
+  type: W5500
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  clk_pin: GPIO10
+  cs_pin: GPIO9
+  interrupt_pin: GPIO13
+  manual_ip:
+    static_ip: 172.30.2.47       # ESP32 在门禁网的IP (原501终端位)
+    subnet: 255.255.255.0
+    # 无网关！阻止跨网段路由，确保网络隔离
+
+# 继电器开门 (GPIO直控，HA离线时也能用)
+switch:
+  - platform: gpio
+    pin: GPIO17
+    name: "门禁开门(继电器)"
+    id: relay_unlock
+    icon: mdi:door-open
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - delay: 500ms
+      - switch.turn_off: relay_unlock
+
+# 来电通知传感器 (binary_sensor)
+binary_sensor:
+  - platform: template
+    name: "门禁来电"
+    id: door_call_ring
+    icon: mdi:phone-ring
+    publish_initial_state: true
+
+# 自定义组件：门禁协议转发核心
+custom_component:
+  - lambda: |-
+      auto gateway = new HR6107Gateway();
+      id(door_gateway) = gateway;
+      return {gateway};
+
+globals:
+  - id: door_gateway
+    type: HR6107Gateway*
+    initial_value: 'nullptr'
+
+# ---------------------------------------------------------------
+# 自定义 C++ 组件 (hr6107_gateway.h)
+# 放在 esphome/custom_components/hr6107_gateway/
+# ---------------------------------------------------------------
+#
+# 核心逻辑 (~200行):
+#
+# class HR6107Gateway : public Component {
+#   // TCP 46752 监听 (门禁网)
+#   // 收到 call_start → MQTT publish hr6107/control/rx + binary_sensor=true
+#   // 收到 call_end   → MQTT publish hr6107/control/rx + binary_sensor=false
+#
+#   // UDP 46753 监听 (门禁网音频)
+#   // 收到包 → UDP 转发到 Docker主机:46753
+#
+#   // UDP 46754 监听 (门禁网视频)
+#   // 收到包 → UDP 转发到 Docker主机:46754
+#
+#   // send_control() — 被 MQTT on_message 调用
+#   // 通过 TCP 46752 发送控制命令到门口机 172.30.2.36
+#
+#   // UDP 46753 发送 (上行音频)
+#   // 接收 Docker主机:46753 的上行音频包 → 发到门口机 172.30.2.36:46753
+# }
