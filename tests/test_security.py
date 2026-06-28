@@ -30,4 +30,6 @@ def test_default_profile_contains_no_active_control_payloads():
     assert payload["commands"]["answer"].endswith("0005fe")
     assert payload["commands"]["hangup"].endswith("0006fe")
     assert payload["commands"]["monitor_start"] is None
-    assert payload["audio_tx"]["verified"] is False
+    assert payload["audio_tx"]["verified"] is True
+    assert payload["audio_tx"]["header_template_hex"] is not None
+    assert len(bytes.fromhex(payload["audio_tx"]["header_template_hex"])) == 20

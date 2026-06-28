@@ -18,6 +18,7 @@ class Settings:
     unlock_cooldown_seconds: float = 10.0
     ring_timeout_seconds: float = 30.0
     auth_required: bool = False
+    unlock_idle_enabled: bool = False
     base_dir: Path = Path(__file__).resolve().parent.parent
 
     @property
@@ -45,10 +46,12 @@ class Settings:
 
 def load_settings() -> Settings:
     auth_value = os.getenv("HR6107_AUTH_REQUIRED", "0").strip().lower()
+    unlock_idle_value = os.getenv("HR6107_UNLOCK_IDLE_ENABLED", "0").strip().lower()
     return Settings(
         device_ip=os.getenv("HR6107_DEVICE_IP", "172.30.2.47"),
         door_ip=os.getenv("HR6107_DOOR_IP", "172.30.2.36"),
         web_host=os.getenv("HR6107_WEB_HOST", "127.0.0.1"),
         web_port=int(os.getenv("HR6107_WEB_PORT", "8088")),
         auth_required=auth_value in {"1", "true", "yes", "on"},
+        unlock_idle_enabled=unlock_idle_value in {"1", "true", "yes", "on"},
     )

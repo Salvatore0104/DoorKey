@@ -191,10 +191,14 @@ class TerminalController:
         return result
 
     async def unlock(self, source: str) -> dict:
+        if not self.profile.command_available("unlock"):
+            raise RuntimeError("开门命令未验证，不允许发送")
         now = time.monotonic()
         remaining = self.settings.unlock_cooldown_seconds - (now - self.last_unlock_at)
         if remaining > 0:
             raise RuntimeError(f"开门限频中，请等待 {remaining:.1f} 秒")
+        if not self.settings.unlock_idle_enabled and self.state.call_state != CallState.ACTIVE:
+            raise RuntimeError("开门仅在通话中可用，当前无通话")
         result = await self.send_command("unlock")
         self.last_unlock_at = now
         await self.events.publish("TX", "audit", "开门命令已发送", source=source, result=result)
@@ -266,6 +270,7 @@ class TerminalController:
                     "answer": self.profile.command_available("answer"),
                     "hangup": self.profile.command_available("hangup"),
                     "unlock": self.profile.command_available("unlock"),
+                    "unlock_idle_enabled": self.settings.unlock_idle_enabled,
                     "talk": self.profile.audio_tx_verified,
                 },
             }

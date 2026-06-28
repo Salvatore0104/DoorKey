@@ -18,7 +18,10 @@ class HR6107UnlockButton(HR6107Entity, ButtonEntity):
     @property
     def available(self) -> bool:
         actions = self.coordinator.data.get("actions", {})
-        return super().available and bool(actions.get("unlock"))
+        call_state = self.coordinator.data.get("call_state", "IDLE")
+        unlock_ok = super().available and bool(actions.get("unlock"))
+        idle_enabled = bool(actions.get("unlock_idle_enabled", False))
+        return unlock_ok and (idle_enabled or call_state == "ACTIVE")
 
     async def async_press(self) -> None:
         try:
