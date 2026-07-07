@@ -38,36 +38,43 @@ class TerminalController:
         self.control_server: asyncio.Server | None = None
         self.transports: list[asyncio.DatagramTransport] = []
         self.media_transports: dict[str, asyncio.DatagramTransport] = {}
+        self.audio_tx_transport: asyncio.DatagramTransport | None = None
         self.ring_timer: asyncio.Task | None = None
         self.last_unlock_at = 0.0
         self.started = False
         self._audio_resampler = av.AudioResampler(format="s16", layout="mono", rate=8000)
         self._audio_tx_buffer = bytearray()
-        self._audio_tx_sequence = 0
-        self._audio_tx_session_header = bytearray(20)
-        self._audio_tx_session_ready = False
+        self._audio_tx_sequence = 11
+        self._audio_tx_packets = 0
+        self._last_audio_tx_log_at = 0.0
         self._last_video_log_at = 0.0
 
     async def start(self) -> None:
         loop = asyncio.get_running_loop()
         self.control_server = await asyncio.start_server(
             self.handle_control,
-            host=self.settings.device_ip,
+            host=self.settings.listen_ip,
             port=self.settings.control_port,
         )
         for port, kind in ((self.settings.audio_port, "audio"), (self.settings.video_port, "video")):
             transport, _ = await loop.create_datagram_endpoint(
                 lambda kind=kind: MediaProtocol(self, kind),
-                local_addr=(self.settings.device_ip, port),
+                local_addr=(self.settings.listen_ip, port),
             )
             self.transports.append(transport)
             self.media_transports[kind] = transport
+        self.audio_tx_transport, _ = await loop.create_datagram_endpoint(
+            asyncio.DatagramProtocol,
+            local_addr=(self.settings.listen_ip, 0),
+        )
+        self.transports.append(self.audio_tx_transport)
         self.started = True
         await self.events.publish(
             "SYS",
             "ok",
             "501软件终端监听已启动",
-            control=f"{self.settings.device_ip}:{self.settings.control_port}",
+            control=f"{self.settings.listen_ip}:{self.settings.control_port}",
+            identity=self.settings.device_ip,
             audio=self.settings.audio_port,
             video=self.settings.video_port,
         )
@@ -160,7 +167,6 @@ class TerminalController:
                     await self.events.publish("RX", "media", "解码视频帧", packets=self.state.video_packets, frames=decoded)
             else:
                 self.state.audio_packets += 1
-                self._capture_audio_session(data)
                 await self.media.feed_audio(data)
         except Exception as exc:
             self.state.last_error = str(exc)
@@ -170,6 +176,9 @@ class TerminalController:
         if self.state.call_state != CallState.RINGING:
             raise RuntimeError("当前没有可接听的来电")
         self.state.transition(CallState.CONNECTING)
+        self._audio_tx_buffer.clear()
+        self._audio_tx_packets = 0
+        self._audio_tx_sequence = self.profile.audio_tx_config().get("initial_sequence", 11) if self.profile.audio_tx_verified else 11
         result = await self.send_command("answer")
         self.state.transition(CallState.ACTIVE)
         await self.events.publish("STATE", "ok", "通话已接听", state=self.state.call_state)
@@ -225,16 +234,6 @@ class TerminalController:
             with suppress(Exception):
                 await writer.wait_closed()
 
-    def _capture_audio_session(self, datagram: bytes) -> None:
-        """从下行音频包提取会话标识，用于构造上行音频头。"""
-        if len(datagram) < 20:
-            return
-        header = datagram[:20]
-        self._audio_tx_session_header = bytearray(header)
-        if not self._audio_tx_session_ready:
-            self._audio_tx_session_ready = True
-            self._audio_tx_sequence = 0
-
     async def microphone_frame(self, frame) -> None:
         if not self.profile.audio_tx_verified:
             return
@@ -242,17 +241,18 @@ class TerminalController:
         if config["codec"].lower() != "pcmu" or config["sample_rate"] != 8000:
             raise RuntimeError("only verified PCMU/8000 audio TX profiles are supported")
         for converted in self._audio_resampler.resample(frame):
-            self._audio_tx_buffer.extend(bytes(converted.planes[0]))
+            # PyAV planes can contain alignment padding. Only consume real PCM
+            # samples, otherwise the packet cadence and audio become corrupted.
+            pcm_size = converted.samples * 2
+            self._audio_tx_buffer.extend(bytes(converted.planes[0])[:pcm_size])
         chunk_size = config["packet_samples"] * 2
-        transport = self.media_transports.get("audio")
+        transport = self.audio_tx_transport
         if transport is None:
             return
         while len(self._audio_tx_buffer) >= chunk_size:
             pcm = bytes(self._audio_tx_buffer[:chunk_size])
             del self._audio_tx_buffer[:chunk_size]
             header = bytearray(config["header"])
-            if self._audio_tx_session_ready:
-                header = bytearray(self._audio_tx_session_header)
             offset = config["sequence_offset"]
             if offset is not None:
                 size = config["sequence_size"]
@@ -262,13 +262,31 @@ class TerminalController:
                 header[offset : offset + size] = (self._audio_tx_sequence % modulo).to_bytes(
                     size, config["sequence_byteorder"]
                 )
-            seq_field_offset = 15
-            if seq_field_offset < len(header):
-                header[seq_field_offset] = self._audio_tx_sequence % 256
+            timestamp_ns = time.time_ns()
+            seconds, nanoseconds = divmod(timestamp_ns, 1_000_000_000)
+            microseconds = nanoseconds // 1_000
+            seconds_offset = config.get("time_seconds_offset")
+            microseconds_offset = config.get("time_microseconds_offset")
+            if seconds_offset is not None:
+                header[seconds_offset : seconds_offset + 4] = seconds.to_bytes(4, "big")
+            if microseconds_offset is not None:
+                header[microseconds_offset : microseconds_offset + 4] = microseconds.to_bytes(4, "big")
             packet = bytes(header) + audioop.lin2ulaw(pcm, 2)
             transport.sendto(packet, (self.settings.door_ip, self.settings.audio_port))
             self._audio_tx_sequence += 1
+            self._audio_tx_packets += 1
             self.state.tx_bytes += len(packet)
+            now = time.monotonic()
+            if now - self._last_audio_tx_log_at >= 1.0:
+                self._last_audio_tx_log_at = now
+                await self.events.publish(
+                    "TX",
+                    "media",
+                    "麦克风音频已发送",
+                    packets=self._audio_tx_packets,
+                    bytes=len(packet),
+                    sequence=self._audio_tx_sequence - 1,
+                )
 
     def snapshot(self) -> dict:
         result = self.state.snapshot()
