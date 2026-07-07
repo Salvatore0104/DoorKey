@@ -1,0 +1,27 @@
+name: doorkey
+
+services:
+  hr6107:
+    build:
+      context: .
+    image: doorkey/hr6107:local
+    container_name: hr6107
+    restart: unless-stopped
+    environment:
+      HR6107_DEVICE_IP: "172.30.2.47"
+      HR6107_DOOR_IP: "172.30.2.36"
+      HR6107_LISTEN_IP: "0.0.0.0"
+      HR6107_WEB_HOST: "0.0.0.0"
+      HR6107_WEB_PORT: "8088"
+      HR6107_AUTH_REQUIRED: "0"
+      HR6107_DATA_DIR: "/data"
+    ports:
+      - "8088:8088/tcp"
+      - "46752:46752/tcp"
+      - "46753:46753/udp"
+      - "46754:46754/udp"
+    volumes:
+      - hr6107-data:/data
+
+volumes:
+  hr6107-data:

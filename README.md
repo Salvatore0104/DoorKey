@@ -189,6 +189,28 @@ pip install -r requirements.txt
 .\stop_hr6107.ps1
 ```
 
+### Docker 运行
+
+Docker 主机必须能够通过 MT300N-V2 路由到 `172.30.2.0/24`，并让路由器把
+TCP `46752`、UDP `46753/46754` 转发到 Docker 主机。首次本地构建并启动：
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+打开 `http://<Docker主机IP>:8088/`。查看日志或停止：
+
+```bash
+docker compose logs -f hr6107
+docker compose down
+```
+
+Compose 使用命名卷 `doorkey_hr6107-data` 保存令牌和事件日志。当前示例为了
+局域网联调设置 `HR6107_AUTH_REQUIRED=0`；正式接入 Home Assistant 前必须启用认证，
+并通过 `HR6107_API_TOKEN` 注入独立令牌。
+
 ### 手动启动
 
 ```bash
