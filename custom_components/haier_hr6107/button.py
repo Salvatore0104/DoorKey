@@ -29,4 +29,3 @@ class HR6107UnlockButton(HR6107Entity, ButtonEntity):
         except Exception as exc:
             raise HomeAssistantError(f"HR-6107 开门失败: {exc}") from exc
         await self.coordinator.async_request_refresh()
-

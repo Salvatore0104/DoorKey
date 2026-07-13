@@ -38,4 +38,3 @@ class HR6107ValueSensor(HR6107Entity, SensorEntity):
             "audio_packets": data.get("audio_packets", 0),
             "protocol_verified": data.get("protocol", {}).get("verified", False),
         }
-

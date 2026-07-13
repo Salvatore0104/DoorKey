@@ -17,4 +17,3 @@ class HR6107RingingSensor(HR6107Entity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return self.coordinator.data.get("call_state") == "RINGING"
-

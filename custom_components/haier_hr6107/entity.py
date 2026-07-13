@@ -17,4 +17,3 @@ class HR6107Entity(CoordinatorEntity):
             manufacturer="Haier",
             model="HR-6107 软件终端",
         )
-
