@@ -98,24 +98,28 @@ class HR6107Coordinator(DataUpdateCoordinator[dict]):
         services = self._mobile_notify_services()
         if not services:
             self.logger.warning("No mobile_app notify services found for HR-6107 call notification")
+            await self._persistent_call_notification()
             return False
 
         self.logger.info("Sending HR-6107 call notification to: %s", ", ".join(services))
         payload = {
-            "title": "门禁来电",
-            "message": "501 门口机正在呼叫",
+            "title": "\u95e8\u7981\u6765\u7535",
+            "message": "501 \u95e8\u53e3\u673a\u6b63\u5728\u547c\u53eb",
             "data": {
                 "tag": "hr6107_call",
                 "group": "hr6107",
                 "url": "/door-key/door",
                 "clickAction": "/door-key/door",
                 "presentation_options": ["alert", "sound"],
-                "actions": [{"action": "URI", "title": "查看", "uri": "/door-key/door"}],
-                "push": {"sound": "default", "interruption-level": "time-sensitive"},
+                "ttl": 0,
+                "priority": "high",
+                "actions": [{"action": "URI", "title": "\u67e5\u770b", "uri": "/door-key/door"}],
+                "push": {"sound": "default"},
             },
         }
         for service in services:
-            await self.hass.services.async_call("notify", service, payload, blocking=False)
+            await self.hass.services.async_call("notify", service, payload, blocking=True)
+        await self._persistent_call_notification()
         self._notification_visible = True
         return True
 
@@ -123,7 +127,25 @@ class HR6107Coordinator(DataUpdateCoordinator[dict]):
         payload = {"message": "clear_notification", "data": {"tag": "hr6107_call"}}
         for service in self._mobile_notify_services():
             await self.hass.services.async_call("notify", service, payload, blocking=False)
+        await self.hass.services.async_call(
+            "persistent_notification",
+            "dismiss",
+            {"notification_id": "hr6107_call"},
+            blocking=False,
+        )
         self._notification_visible = False
+
+    async def _persistent_call_notification(self) -> None:
+        await self.hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "notification_id": "hr6107_call",
+                "title": "\u95e8\u7981\u6765\u7535",
+                "message": "[501 \u95e8\u53e3\u673a\u6b63\u5728\u547c\u53eb](/door-key/door)",
+            },
+            blocking=False,
+        )
 
     def _mobile_notify_services(self) -> list[str]:
         notify = self.hass.services.async_services().get("notify", {})
