@@ -5,6 +5,7 @@ class HaierHR6107Card extends HTMLElement {
     this.pc = null;
     this.state = null;
     this.timer = null;
+    this.toastTimer = null;
   }
 
   setConfig(config) {
@@ -22,9 +23,9 @@ class HaierHR6107Card extends HTMLElement {
 
   disconnectedCallback() {
     if (this.timer) window.clearInterval(this.timer);
-    if (this.pc) this.pc.close();
+    if (this.toastTimer) window.clearTimeout(this.toastTimer);
+    this.closePeer();
     this.timer = null;
-    this.pc = null;
   }
 
   getCardSize() {
@@ -41,42 +42,65 @@ class HaierHR6107Card extends HTMLElement {
       this.state = await this.api("GET", "haier_hr6107/state");
       this.updateState();
     } catch (err) {
-      this.toast(`状态读取失败：${err.message || err}`, true);
+      this.toast(`State refresh failed: ${this.errorText(err)}`, true);
     }
   }
 
   async answer() {
     await this.safeAction(async () => {
+      this.toast("Answering...");
       await this.api("POST", "haier_hr6107/call/answer", {});
+      this.toast("Answered. Connecting media...");
       await this.connectMedia();
       await this.refresh();
-    }, "接听失败");
+    }, "Answer failed");
   }
 
   async hangup() {
     await this.safeAction(async () => {
       await this.api("POST", "haier_hr6107/call/hangup", {});
-      if (this.pc) this.pc.close();
-      this.pc = null;
+      this.closePeer();
       await this.refresh();
-    }, "挂断失败");
+      this.toast("Call ended");
+    }, "Hang up failed");
   }
 
   async unlock() {
     await this.safeAction(async () => {
       await this.api("POST", "haier_hr6107/unlock", {});
       await this.refresh();
-    }, "开门失败");
+      this.toast("Door opened");
+    }, "Open door failed");
   }
 
   async connectMedia() {
-    if (this.pc) this.pc.close();
     const video = this.shadowRoot.querySelector("#video");
     const stream = new MediaStream();
     video.srcObject = stream;
+    video.muted = false;
 
+    this.closePeer();
     this.pc = new RTCPeerConnection();
-    this.pc.ontrack = (event) => stream.addTrack(event.track);
+    this.pc.ontrack = (event) => {
+      for (const track of event.streams?.[0]?.getTracks?.() || [event.track]) {
+        if (!stream.getTracks().some((item) => item.id === track.id)) {
+          stream.addTrack(track);
+        }
+      }
+      this.setMediaStatus("Media receiving");
+    };
+    this.pc.onconnectionstatechange = () => {
+      const state = this.pc?.connectionState || "closed";
+      this.setMediaStatus(`WebRTC: ${state}`);
+      if (state === "failed" || state === "disconnected") {
+        this.toast(`Media ${state}`, true);
+      }
+    };
+    this.pc.oniceconnectionstatechange = () => {
+      const state = this.pc?.iceConnectionState || "closed";
+      this.setMediaStatus(`ICE: ${state}`);
+    };
+
     this.pc.addTransceiver("video", { direction: "recvonly" });
     this.pc.addTransceiver("audio", { direction: "recvonly" });
 
@@ -87,15 +111,35 @@ class HaierHR6107Card extends HTMLElement {
       type: this.pc.localDescription.type,
     });
     await this.pc.setRemoteDescription(answer);
-    this.toast("媒体已连接");
+    await video.play().catch((err) => {
+      this.toast(`Tap the video if playback is blocked: ${this.errorText(err)}`, true);
+    });
+    this.toast("Media connected");
+  }
+
+  closePeer() {
+    if (this.pc) {
+      this.pc.close();
+      this.pc = null;
+    }
+    const video = this.shadowRoot?.querySelector("#video");
+    if (video) video.srcObject = null;
+    this.setMediaStatus("Media idle");
   }
 
   async safeAction(fn, label) {
     try {
       await fn();
     } catch (err) {
-      this.toast(`${label}：${err.message || err}`, true);
+      this.toast(`${label}: ${this.errorText(err)}`, true);
+      await this.refresh();
     }
+  }
+
+  errorText(err) {
+    if (!err) return "unknown error";
+    if (typeof err === "string") return err;
+    return err.message || err.error || err.detail || JSON.stringify(err);
   }
 
   updateState() {
@@ -105,7 +149,7 @@ class HaierHR6107Card extends HTMLElement {
     const actions = s.actions || {};
     this.shadowRoot.querySelector("#state").textContent = callState;
     this.shadowRoot.querySelector("#listener").textContent =
-      s.listener === "online" ? "在线" : "离线";
+      s.listener === "online" ? "online" : "offline";
     this.shadowRoot.querySelector("#packets").textContent =
       `${s.video_packets || 0} / ${s.audio_packets || 0}`;
     this.shadowRoot.querySelector("#ring").hidden = callState !== "RINGING";
@@ -116,13 +160,18 @@ class HaierHR6107Card extends HTMLElement {
       !(actions.unlock && (actions.unlock_idle_enabled || callState === "ACTIVE"));
   }
 
+  setMediaStatus(message) {
+    const el = this.shadowRoot?.querySelector("#mediaStatus");
+    if (el) el.textContent = message;
+  }
+
   toast(message, error = false) {
     const el = this.shadowRoot?.querySelector("#toast");
     if (!el) return;
     el.textContent = message;
     el.className = error ? "error show" : "show";
     window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (el.className = ""), 3000);
+    this.toastTimer = window.setTimeout(() => (el.className = ""), 4500);
   }
 
   render() {
@@ -139,33 +188,38 @@ class HaierHR6107Card extends HTMLElement {
         .stat strong { font-size: 16px; }
         .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         mwc-button { border-radius: 10px; }
+        #mediaStatus { color: var(--secondary-text-color); font-size: 13px; }
         #toast { display: none; padding: 10px 14px; margin: 0 14px 14px; border-radius: 10px; background: var(--secondary-background-color); }
         #toast.show { display: block; }
         #toast.error { color: var(--error-color); }
         @media (max-width: 600px) { .actions { grid-template-columns: 1fr 1fr; } .stats { grid-template-columns: 1fr; } }
       </style>
-      <ha-card header="${this.config?.title || "501 门禁"}">
+      <ha-card header="${this.config?.title || "Door Intercom 501"}">
         <div class="media">
           <video id="video" autoplay playsinline controls></video>
-          <div id="ring" class="ring" hidden>门禁来电</div>
+          <div id="ring" class="ring" hidden>Door call</div>
         </div>
         <div class="body">
           <div class="stats">
-            <div class="stat"><span>通话状态</span><strong id="state">—</strong></div>
-            <div class="stat"><span>终端服务</span><strong id="listener">—</strong></div>
-            <div class="stat"><span>视频/音频包</span><strong id="packets">0 / 0</strong></div>
+            <div class="stat"><span>Call state</span><strong id="state">-</strong></div>
+            <div class="stat"><span>Backend</span><strong id="listener">-</strong></div>
+            <div class="stat"><span>Video / audio packets</span><strong id="packets">0 / 0</strong></div>
           </div>
+          <div id="mediaStatus">Media idle</div>
           <div class="actions">
-            <mwc-button id="media" outlined>连接媒体</mwc-button>
-            <mwc-button id="answer" raised disabled>接听</mwc-button>
-            <mwc-button id="unlock" raised disabled>开门</mwc-button>
-            <mwc-button id="hangup" outlined disabled>挂断</mwc-button>
+            <mwc-button id="media" outlined>Connect media</mwc-button>
+            <mwc-button id="answer" raised disabled>Answer</mwc-button>
+            <mwc-button id="unlock" raised disabled>Open door</mwc-button>
+            <mwc-button id="hangup" outlined disabled>Hang up</mwc-button>
           </div>
         </div>
         <div id="toast"></div>
       </ha-card>
     `;
-    this.shadowRoot.querySelector("#media").onclick = () => this.connectMedia();
+    this.shadowRoot.querySelector("#media").onclick = () => this.safeAction(
+      () => this.connectMedia(),
+      "Media connect failed",
+    );
     this.shadowRoot.querySelector("#answer").onclick = () => this.answer();
     this.shadowRoot.querySelector("#unlock").onclick = () => this.unlock();
     this.shadowRoot.querySelector("#hangup").onclick = () => this.hangup();
@@ -178,6 +232,6 @@ customElements.define("haier-hr6107-card", HaierHR6107Card);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "haier-hr6107-card",
-  name: "Haier HR-6107 门禁",
-  description: "海尔 HR-6107 501 门禁接听、视频和开门卡片",
+  name: "Haier HR-6107 Door Intercom",
+  description: "Answer, watch video, and open the 501 door from Home Assistant.",
 });

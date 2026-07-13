@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from datetime import timedelta
+from logging import getLogger
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -15,7 +16,7 @@ class HR6107Coordinator(DataUpdateCoordinator[dict]):
     def __init__(self, hass, api: HR6107Api) -> None:
         super().__init__(
             hass,
-            logger=__import__("logging").getLogger(__name__),
+            logger=getLogger(__name__),
             name=DOMAIN,
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
@@ -30,7 +31,7 @@ class HR6107Coordinator(DataUpdateCoordinator[dict]):
             await self._handle_state(data)
             return data
         except Exception as exc:
-            raise UpdateFailed(f"HR-6107 服务不可用: {exc}") from exc
+            raise UpdateFailed(f"HR-6107 backend is not available: {exc}") from exc
 
     async def async_start(self) -> None:
         if self._ws_task is None or self._ws_task.done():
@@ -83,17 +84,23 @@ class HR6107Coordinator(DataUpdateCoordinator[dict]):
         if call_state == "RINGING":
             key = str(data.get("last_call") or data.get("call_count") or "ringing")
             if key != self._last_call_key:
-                self._last_call_key = key
-                await self._notify_call()
+                notified = await self._notify_call()
+                if notified:
+                    self._last_call_key = key
             return
+
         if self._notification_visible and call_state in {"IDLE", "ENDING", "ERROR"}:
             await self._clear_call_notification()
+        if call_state in {"IDLE", "ENDING", "ERROR"}:
+            self._last_call_key = None
 
-    async def _notify_call(self) -> None:
+    async def _notify_call(self) -> bool:
         services = self._mobile_notify_services()
         if not services:
             self.logger.warning("No mobile_app notify services found for HR-6107 call notification")
-            return
+            return False
+
+        self.logger.info("Sending HR-6107 call notification to: %s", ", ".join(services))
         payload = {
             "title": "门禁来电",
             "message": "501 门口机正在呼叫",
@@ -104,11 +111,13 @@ class HR6107Coordinator(DataUpdateCoordinator[dict]):
                 "clickAction": "/door-key/door",
                 "presentation_options": ["alert", "sound"],
                 "actions": [{"action": "URI", "title": "查看", "uri": "/door-key/door"}],
+                "push": {"sound": "default", "interruption-level": "time-sensitive"},
             },
         }
         for service in services:
             await self.hass.services.async_call("notify", service, payload, blocking=False)
         self._notification_visible = True
+        return True
 
     async def _clear_call_notification(self) -> None:
         payload = {"message": "clear_notification", "data": {"tag": "hr6107_call"}}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from aiohttp import ClientResponseError
 from aiohttp import web
 
 from homeassistant.components.http import HomeAssistantView
@@ -49,9 +50,15 @@ class HR6107ActionView(HomeAssistantView):
     async def post(self, request):
         coordinator = first_coordinator(request.app["hass"])
         method = getattr(coordinator.api, self.action)
-        result = await method()
-        await coordinator.async_request_refresh()
-        return web.json_response({"ok": True, "result": result})
+        try:
+            result = await method()
+            await coordinator.async_request_refresh()
+            return web.json_response({"ok": True, "result": result})
+        except ClientResponseError as exc:
+            return web.json_response(
+                {"ok": False, "error": exc.message, "status": exc.status},
+                status=exc.status,
+            )
 
 
 class HR6107WebRTCOfferView(HomeAssistantView):
@@ -61,8 +68,14 @@ class HR6107WebRTCOfferView(HomeAssistantView):
     async def post(self, request):
         body = await request.json()
         coordinator = first_coordinator(request.app["hass"])
-        result = await coordinator.api.webrtc_offer(body["sdp"], body.get("type", "offer"))
-        return web.json_response(result)
+        try:
+            result = await coordinator.api.webrtc_offer(body["sdp"], body.get("type", "offer"))
+            return web.json_response(result)
+        except ClientResponseError as exc:
+            return web.json_response(
+                {"ok": False, "error": exc.message, "status": exc.status},
+                status=exc.status,
+            )
 
 
 class HR6107CardView(HomeAssistantView):
