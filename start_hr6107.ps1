@@ -1,12 +1,13 @@
 param(
     [string]$DeviceIp = "172.30.2.47",
+    [string]$ListenIp = "0.0.0.0",
     [string]$WebHost = "127.0.0.1",
     [int]$WebPort = 8088
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Python = "C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+$Python = Join-Path $Root ".venv\Scripts\python.exe"
 $PidFile = Join-Path $Root ".hr6107_service.pid"
 $LogFile = Join-Path $Root "hr6107_console.log"
 $ErrorLogFile = Join-Path $Root "hr6107_console.error.log"
@@ -19,13 +20,8 @@ if (Test-Path $PidFile) {
     Remove-Item -LiteralPath $PidFile
 }
 
-$Assigned = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-    Where-Object { $_.IPAddress -eq $DeviceIp }
-if (-not $Assigned -and $DeviceIp -ne "127.0.0.1") {
-    throw "The device IP $DeviceIp is not assigned to this computer."
-}
-
 $env:HR6107_DEVICE_IP = $DeviceIp
+$env:HR6107_LISTEN_IP = $ListenIp
 $env:HR6107_WEB_HOST = $WebHost
 $env:HR6107_WEB_PORT = "$WebPort"
 $Process = Start-Process -FilePath $Python -ArgumentList "run_hr6107.py" -WorkingDirectory $Root `

@@ -17,7 +17,7 @@ class HR6107ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             base_url = user_input[CONF_BASE_URL].rstrip("/")
-            api = HR6107Api(async_get_clientsession(self.hass), base_url, user_input[CONF_TOKEN])
+            api = HR6107Api(async_get_clientsession(self.hass), base_url, user_input.get(CONF_TOKEN, ""))
             try:
                 state = await validate_api(api)
             except ClientResponseError as exc:
@@ -29,14 +29,13 @@ class HR6107ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=DEFAULT_NAME,
-                    data={CONF_BASE_URL: base_url, CONF_TOKEN: user_input[CONF_TOKEN]},
+                    data={CONF_BASE_URL: base_url, CONF_TOKEN: user_input.get(CONF_TOKEN, "")},
                 )
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_BASE_URL, default="http://172.30.2.47:8088"): str,
-                vol.Required(CONF_TOKEN): str,
+                vol.Required(CONF_BASE_URL, default="http://10.10.1.3:8088"): str,
+                vol.Optional(CONF_TOKEN, default=""): str,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
-

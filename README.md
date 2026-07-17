@@ -154,6 +154,14 @@ IDLE → RINGING → CONNECTING → ACTIVE → ENDING → IDLE
 - 一块网卡配置为门禁网段 IP `172.30.2.47/24`（或通过环境变量自定义）
 - 网络可达门口机 `172.30.2.36`
 
+### MT300N-V2 双网部署要点
+
+- 家庭侧通过 Wi-Fi 中继获得固定 DHCP 租约；门禁侧 WAN 使用终端身份地址 `172.30.2.47/24`，不配置网关或 DNS。
+- 家庭网主机添加静态路由：`172.30.2.0/24` 经 MT300N-V2 的家庭侧地址。
+- 防火墙将家庭侧 `wwan` 与门禁侧物理 `wan` 分离，仅放行指定服务主机。
+- 部分 MT300N-V2 固件会把经中继转发的单播帧保留为二层广播，需要在 `apcli0` ingress 将目标门禁网段的 `pkttype` 修正为 `host`。
+- 路由器管理地址、家庭侧 MAC 和实际内网 IP 属于本地部署秘密，不应提交到公开仓库。
+
 ### 安装
 
 ```bash
@@ -180,6 +188,28 @@ pip install -r requirements.txt
 ```powershell
 .\stop_hr6107.ps1
 ```
+
+### Docker 运行
+
+Docker 主机必须能够通过 MT300N-V2 路由到 `172.30.2.0/24`，并让路由器把
+TCP `46752`、UDP `46753/46754` 转发到 Docker 主机。首次本地构建并启动：
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+打开 `http://<Docker主机IP>:8088/`。查看日志或停止：
+
+```bash
+docker compose logs -f hr6107
+docker compose down
+```
+
+Compose 使用命名卷 `doorkey_hr6107-data` 保存令牌和事件日志。当前示例为了
+局域网联调设置 `HR6107_AUTH_REQUIRED=0`；正式接入 Home Assistant 前必须启用认证，
+并通过 `HR6107_API_TOKEN` 注入独立令牌。
 
 ### 手动启动
 

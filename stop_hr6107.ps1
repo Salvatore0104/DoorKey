@@ -9,8 +9,13 @@ if (-not (Test-Path $PidFile)) {
 $ServicePid = [int](Get-Content $PidFile)
 $Process = Get-Process -Id $ServicePid -ErrorAction SilentlyContinue
 if ($Process) {
-    Stop-Process -Id $ServicePid
-    $Process.WaitForExit(5000)
+    $CommandLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $ServicePid" -ErrorAction SilentlyContinue).CommandLine
+    if ($Process.ProcessName -like "python*" -and $CommandLine -match "run_hr6107\.py") {
+        Stop-Process -Id $ServicePid
+        $Process.WaitForExit(5000)
+    } else {
+        Write-Warning "PID $ServicePid no longer belongs to HR-6107; removing stale PID file only."
+    }
 }
 Remove-Item -LiteralPath $PidFile -ErrorAction SilentlyContinue
 Write-Host "HR-6107 service stopped."

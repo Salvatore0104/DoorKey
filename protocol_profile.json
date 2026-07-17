@@ -28,13 +28,16 @@
   },
   "audio_tx": {
     "verified": true,
-    "header_template_hex": "0000000000000400000000006a41aa0000000000",
-    "sequence_offset": 3,
-    "sequence_size": 1,
+    "header_template_hex": "0000000b00000400000000000000000000000000",
+    "sequence_offset": 0,
+    "sequence_size": 4,
     "sequence_byteorder": "big",
+    "initial_sequence": 11,
+    "time_seconds_offset": 12,
+    "time_microseconds_offset": 16,
     "packet_samples": 512,
     "sample_rate": 8000,
     "codec": "pcmu",
-    "note": "PCMU payload verified; 20-byte session header reverse-engineered from 901_upstream_direction_check.pcapng (87 packets). Offset 3 is a 1-byte sequence counter (step=1, wraps every 32 packets). Offset 13-14 is a session marker (6a41 + aaxx). Offset 17-19 is a timestamp/checksum field (auto-filled by door, safe to leave 0)."
+    "note": "PCMU payload verified. Header is uint32 sequence (starts 11), uint32 0x400, uint32 0, uint32 Unix seconds, uint32 microseconds; network byte order."
   }
 }

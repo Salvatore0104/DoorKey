@@ -18,7 +18,7 @@ def test_unlock_is_profile_gated_before_network_access(tmp_path):
         EventBus(tmp_path / "events.jsonl"),
         MediaHub(),
     )
-    with pytest.raises(RuntimeError, match="not verified"):
+    with pytest.raises(RuntimeError, match="未验证"):
         asyncio.run(controller.unlock("test"))
     assert controller.last_unlock_at == 0
 

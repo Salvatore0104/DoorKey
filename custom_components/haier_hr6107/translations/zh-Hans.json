@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "连接 HR-6107 501 软件终端",
-        "description": "输入仅在家庭网络开放的后端地址和访问令牌。",
+        "description": "输入运行在家庭网络中的 HR-6107 后端地址。当前未启用后端认证时，令牌可留空。",
         "data": {
           "base_url": "服务地址",
           "token": "访问令牌"
@@ -15,7 +15,7 @@
       "invalid_auth": "访问令牌无效"
     },
     "abort": {
-      "already_configured": "501 软件终端已配置"
+      "already_configured": "501 软件终端已经配置"
     }
   }
 }
